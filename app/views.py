@@ -5,6 +5,7 @@ from .serializers import UserSerializer,PaymentSerializer
 from .models import User, UserPayment
 from rest_framework.exceptions import NotFound
 from django.utils import timezone
+from rest_framework import status
 
 class CreateUserView(APIView):
     def post(self, request) -> Response:
@@ -45,18 +46,25 @@ class PaymentUserView(APIView):
     
 
     def get(self, request, pk):
-        payments = UserPayment.objects.filter(user__chat_id=pk).last()  # Chat_id bo'yicha filtratsiya
-        now_date = payments.end_date-timezone.now()
-        print(now_date)
-        # Agar to'lov muddati tugagan bo'lsa
-        if now_date.total_seconds() > 0:
-            # to'lov muddati tugaganini anglatish uchun qo'shimcha ma'lumotni o'zgartiramiz
-            payments.status = False
-            payments.save()
+        try:
+            payments = UserPayment.objects.filter(user__chat_id=pk).last()  # Chat_id bo'yicha filtratsiya
+            if payments is None:
+                return Response({"error": "Bu to'lov mavjud emas"}, status=status.HTTP_404_NOT_FOUND)
             
-        serializer = PaymentSerializer(payments)
-        data = serializer.data
-        data["now_date"] = now_date.total_seconds() if now_date.total_seconds() > 0 else None  # Agar muddat tugagan bo'lsa, aks holda None qaytariladi
-        return Response(data)
+            now_date = payments.end_date - timezone.now()
+            
+            # Agar to'lov muddati tugagan bo'lsa
+            if now_date.total_seconds() < 0:
+                # to'lov muddati tugaganini anglatish uchun qo'shimcha ma'lumotni o'zgartiramiz
+                payments.status = False
+                payments.save()
+                
+            serializer = PaymentSerializer(payments)
+            data = serializer.data
+            data["now_date"] = now_date.total_seconds() if now_date.total_seconds() > 0 else None  # Agar muddat tugagan bo'lsa, aks holda None qaytariladi
+            return Response(data)
+        except UserPayment.DoesNotExist:
+            return Response({"error": "Bu to'lov mavjud emas"}, status=status.HTTP_404_NOT_FOUND)
+
 
 
