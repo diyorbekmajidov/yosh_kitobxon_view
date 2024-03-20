@@ -2,9 +2,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from .serializers import UserSerializer,PaymentSerializer
-from .models import User
-from django.shortcuts import get_object_or_404
+from .models import User, UserPayment
 from rest_framework.exceptions import NotFound
+from django.utils import timezone
 
 class CreateUserView(APIView):
     def post(self, request) -> Response:
@@ -42,4 +42,21 @@ class PaymentUserView(APIView):
             serializer.save()
             return Response({"message": "Payment created successfully", "data": serializer.data})
         return Response(serializer.errors)
+    
+
+    def get(self, request, pk):
+        payments = UserPayment.objects.filter(user__chat_id=pk).last()  # Chat_id bo'yicha filtratsiya
+        now_date = payments.end_date-timezone.now()
+        print(now_date)
+        # Agar to'lov muddati tugagan bo'lsa
+        if now_date.total_seconds() > 0:
+            # to'lov muddati tugaganini anglatish uchun qo'shimcha ma'lumotni o'zgartiramiz
+            payments.status = False
+            payments.save()
+            
+        serializer = PaymentSerializer(payments)
+        data = serializer.data
+        data["now_date"] = now_date.total_seconds() if now_date.total_seconds() > 0 else None  # Agar muddat tugagan bo'lsa, aks holda None qaytariladi
+        return Response(data)
+
 
